@@ -1,404 +1,82 @@
-# kube-multi-cluster-managment
-Utilizing Kubernetes Cluster-API, Multi-Cluster API and Submariner to build management and observation tool for researching the Kuberntes multi-cluster environment
+## 故事标题：打破语义混沌与推理孤岛——一种基于语义解耦与自适应协同的抗扰动多视图异常检测框架
 
-## Installation
+---
 
-- homebrew - all of our installations are using homebrew, which is a package for macOS/linux (`https://stackoverflow.com/questions/33353618/can-i-use-homebrew-on-ubuntu/56982151`)
-- Docker (`brew install docker`)
-- kubectl (`brew install kubernetes-cli`)
-- kind (`brew install kind`)
--  jsonnet (make sure version 10.5 and above is installed) (`brew install jsonnet`)
-- curl (`brew install curl`)
+## 第一部分：痛点论证——为什么现有的多视图融合在安全领域行不通？
 
-## Providers
+在将基于 LLM-MGE 提取的多维语义子图应用于异常检测时，我们发现通用的多视图 GNN 存在三个**真实且致命**的缺陷，导致其无法应对高对抗性的恶意样本：
 
-- AWS - needs Administrator access permissions
+### 1. 语义混淆与干扰 (Semantic Confusion & Interference)
 
-## Step by step - Kind
-Based on - `https://cluster-api.sigs.k8s.io/user/quick-start.html`
+* *现象*：现有方法倾向于将不同视角的边（如“API调用顺序”与“资源操作依赖”）物理合并或在早期进行特征拼接。  
+* *后果*：这破坏了图的语义纯度。微观的恶意模式（如特定的资源劫持链条）往往只在单一视图中显形，混合后极易被另一视图的海量背景噪声（如正常的频繁函数调用）所稀释和淹没。**模型“看得见”大图，却“看不清”关键子结构。**
 
-Create clsuter with supported version
-kind create cluster --image=kindest/node:v1.22.0
+### 2. 推理孤岛 (Isolation of Reasoning)
 
-AWS
-export AWS_REGION=us-east-1
-export AWS_ACCESS_KEY_ID=
-export AWS_SECRET_ACCESS_KEY=
-export AWS_B64ENCODED_CREDENTIALS=$(clusterawsadm bootstrap credentials encode-as-profile)
+* *现象*：传统模型采用“独立编码-晚期融合”范式，各视图在特征提取阶段是隔离的，仅在最终决策层进行加权。  
+* *后果*：由于 LLM 提取的子图质量参差不齐（如动态视图常因沙箱截断而稀疏），弱视图无法在传播过程中借力强视图。这种单向、静态的融合导致模型**缺乏协同补全能力**，一旦关键视图质量下降，整体性能即刻崩塌。
 
-GCP
-export GCP_B64ENCODED_CREDENTIALS=$( cat ./kmcm-owner.json | base64 | tr -d '\n' )
+### 3. 对抗性差异的过度平滑 (Oversmoothing of Adversarial Discrepancy)
 
-export GCP_REGION=us-east1 GCP_PROJECT=kmcm-83960 GCP_NODE_MACHINE_TYPE=n1-standard-2 GCP_NETWORK_NAME=default GCP_CONTROL_PLANE_MACHINE_TYPE=n1-standard-2
+* *现象*：为了追求训练稳定，现有方法强行最小化视图间的差异，试图达成一致性。  
+* *后果*：在安全场景下，高级规避样本的典型特征正是“跨视角不一致”（如静态代码结构正常，但动态行为意图危险）。强行抹平这种差异，等同于**主动擦除恶意证据**，让模型对规避型攻击视而不见。
 
-And create a cluster
+---
 
-clusterctl generate cluster aws-us-east-1 \
---kubernetes-version v1.22.0 \
---control-plane-machine-count=3 \
---worker-machine-count=3 \
-| kubectl apply -f -
+## 第二部分：技术设计——我们的核心路线
 
-clusterctl config cluster test1 --kubernetes-version v1.18.16 --control-plane-machine-count=3 --worker-machine-count=3 | kubectl apply -f -
+针对上述痛点，我们提出了一种**“语义解耦-动态协同-自适应蒸馏”**的三位一体架构：
 
-## Simple tesing on a local managment cluster - creating a work load cluster
+### 1. Semantic-Decoupled Propagation（语义解耦传播）
 
-## Docker cheatsheet
+* 放弃混合构图，坚持在独立的语义通道内进行消息传递，确保每个视图只学习属于自己的特定模式。
 
-- Clean up local docker env
-`docker rm -vf $(docker ps -a -q) && docker rmi -f $(docker images -a -q)`
+### 2. Iterative Consensus Injection（迭代式共识注入）
 
-## AWS Mahcine types
+* 构建层级反馈回路，将每一层的全局融合共识（Consensus）动态回灌（Inject）至各视图分支，作为下一层的先验上下文。
 
-- `https://aws.amazon.com/ec2/instance-types/`
+### 3. Instance-Conditional Adaptive Distillation（样本条件化自适应蒸馏）
 
-## Kubectl Cheetsheet
+* 引入差异化蒸馏模块，根据样本的跨视角散度（Divergence），动态调整蒸馏强度。
 
-- `https://kubernetes.io/docs/reference/kubectl/cheatsheet/`
+---
 
-kubectl --kubeconfig=./capi-quickstart.kubeconfig apply -f https://docs.projectcalico.org/v3.15/manifests/calico.yaml
+## 第三部分：价值展开——技术点、痛点与提升的逻辑映射
 
-kubectl --kubeconfig=./capi-quickstart.kubeconfig apply -f https://docs.projectcalico.org/v3.18/manifests/calico.yaml
+这一部分是本工作的核心贡献所在。我们通过上述三大技术设计，精准解决了前述痛点，并从五个维度实现了质的飞跃：
 
+### 1. 语义纯净性与结构保真 (Semantic Fidelity)
 
-## GCP Allow default network
+* **映射逻辑**：针对**“语义混淆”**痛点 → 采用**“语义解耦传播”**技术。  
+* **原理解析**：通过隔离不同性质的边，模型避免了异质信息的交叉干扰。  
+* **实现提升**：确保了微观攻击模式的完整性。例如，模型能够清晰地在“依赖通道”中描绘出勒索软件的加密逻辑，而不受“时序通道”中正常业务调用的干扰，极大提升了对特定恶意家族的识别精度。
 
-gcloud compute routers create capi-quickstart-myrouter --project=kmcm-83960 --region=us-east1 --network=default
+### 2. 深层协同推理 (Deep Collaborative Reasoning)
 
-gcloud compute routers nats create capi-quickstart --project=kmcm-83960 --router-region=us-east1 --router=capi-quickstart-myrouter --nat-all-subnet-ip-ranges --auto-allocate-nat-external-ips
+* **映射逻辑**：针对**“推理孤岛”**痛点 → 采用**“迭代式共识注入”**技术。  
+* **原理解析**：打破了视图间的隔阂，让强视图的信号在层间传播时能够“指导”弱视图聚焦关键节点。  
+* **实现提升**：模型具备了类似于多专家会诊的交互能力。即使 LLM 提取的某个视图（如动态轨迹）不完整，模型也能利用其他视图（如静态意图）回传的线索来补全推理链条，显著降低了对单一视图质量的依赖。
 
-gcloud compute firewall-rules list --project kmcm-83960
+### 3. 训练稳定性与防御纵深 (Stability & Defense in Depth)
 
-gcloud compute networks list --project=kmcm-83960
+* **映射逻辑**：针对多视图训练中的**“模态塌缩/偏科”**问题 → 采用**“自适应蒸馏（视图差异化权重）”**技术。  
+* **原理解析**：通过强制每个分支逼近全局共识，防止模型偷懒只依赖最容易拟合的视图（Shortcut Learning）。  
+* **实现提升**：构建了多道独立防线。推理时，即使攻击者成功混淆了主视图，其他经过充分训练的辅视图依然具备独立的判别能力，确保防御体系不被单点突破。
 
-gcloud compute networks describe default --project=kmcm-83960
+### 4. 矛盾利用与可解释性溯源 (Divergence-Aware Explainability)
 
-kubectl --kubeconfig=./capi-quickstart.kubeconfig get nodes
+* **映射逻辑**：针对**“对抗性差异过度平滑”**痛点 → 采用**“样本条件化蒸馏（保留高散度）”**技术。  
+* **原理解析**：当检测到跨视角分歧巨大时，模型自动降低蒸馏强度，保护这种“不一致性”不被优化掉，并将其作为判别依据。  
+* **实现提升**：将原本被视为噪声的“冲突”转化为了最高级的恶意证据。这不仅能精准抓出规避型样本，还能向安全人员解释：“判黑是因为视图 A 显示正常，但视图 B 显示高危，且两者逻辑互斥”，极大地提升了告警的可解释性。
 
-// Cluster in asia
-gcloud container clusters create test-europe-west1 --region=europe-west1 --machine-type=e2-micro --num-nodes=1
+### 5. 多层次抗扰动能力 (Multi-Level Robustness)
 
-gcloud container clusters get-credentials test-asia-east1 --region=asia-east1 --project=kmcm-83960
-~/.local/bin/subctl deploy-broker
-~/.local/bin/subctl join broker-info.subm --clusterid cluster-a --servicecidr 10.7.240.0/20
+* **映射逻辑**：针对**“结构投毒与噪声干扰”** → 综合应用**“解耦隔离 + 共识纠偏”**机制。  
+* **原理解析**：解耦使得污染被限制在单一视图内，不扩散至全图；共识注入利用其他干净视图的“投票”来纠正受污分支的表示。  
+* **实现提升**：模型在面对恶意结构投毒（如伪造邻居）或环境噪声（如沙箱提取失败）时，表现出极强的鲁棒性，误报率和漏报率均显著低于传统融合模型。
 
-// Cluster in US
-gcloud container clusters create test-us-east1 --region=us-east1 --machine-type=e2-micro --num-nodes=1
+---
 
-gcloud container clusters get-credentials test-us-east1 --region=us-east1 --project=kmcm-83960
-~/.local/bin/subctl join broker-info.subm --clusterid cluster-a --servicecidr 10.3.240.0/20
+## 总结
 
-
-
-KUBECONFIG=test-asia-east1.yml gcloud container clusters get-credentials test-asia-east1 --region=asia-east1 --project=kmcm-83960
-KUBECONFIG=test-us-east1.yml gcloud container clusters get-credentials test-us-east1 --region=us-east1 --project=kmcm-83960
-
-KUBECONFIG=test-us-east1.yml:test-asia-east1.yml ~/.local/bin/subctl verify --kubecontexts test-us-east1,test-asia-east1 --only service-discovery,connectivity --verbose
-
-- Get gatway nodes
-kubectl get nodes --selector='submariner.io/gateway=true' --all-namespaces
-
-1)
-gcloud container clusters create "cluster-a" \
-    --region "us-west1" \
-    --machine-type "g1-small" \
-    --image-type "UBUNTU" \
-    --disk-type "pd-ssd" \
-    --disk-size "15" \
-    --num-nodes "1" \
-    --no-enable-shielded-nodes \
-    --no-shielded-integrity-monitoring \
-    --no-shielded-secure-boot \
-    --cluster-version "1.18.20-gke.4100" \
-    --enable-ip-alias \
-    --enable-network-policy \
-    --enable-intra-node-visibility \
-    --project=kmcm-83960
-
-gcloud container clusters create "cluster-b" \
-    --region "us-east1" \
-    --machine-type "g1-small" \
-    --image-type "UBUNTU" \
-    --disk-type "pd-ssd" \
-    --disk-size "15" \
-    --num-nodes "1" \
-    --no-enable-shielded-nodes \
-    --no-shielded-integrity-monitoring \
-    --no-shielded-secure-boot \
-    --cluster-version "1.18.20-gke.4100" \
-    --enable-ip-alias \
-    --enable-network-policy \
-    --enable-intra-node-visibility \
-    --project=kmcm-83960
-
-gcloud container clusters delete cluster-a --region="us-west1"
-gcloud container clusters delete cluster-b --region="us-east1"
-
-2)
-gcloud container clusters get-credentials cluster-a --region="us-west1"
-./configure-rp-filter.sh
-gcloud container clusters get-credentials cluster-b --region="us-east1"
-./configure-rp-filter.sh
-
-gcloud container clusters get-credentials cluster-a --zone="europe-west3-a"
-./configure-rp-filter.sh
-gcloud container clusters get-credentials cluster-b --zone="europe-west3-a"
-./configure-rp-filter.sh
-
-3)
-gcloud compute firewall-rules create "allow-tcp-in" --allow=tcp \
-  --direction=IN --source-ranges=10.12.0.0/20,10.8.0.0/14,10.4.0.0/20,10.0.0.0/14
-
-gcloud compute firewall-rules create "allow-tcp-out" --allow=tcp --direction=OUT \
-  --destination-ranges=10.12.0.0/20,10.8.0.0/14,10.4.0.0/20,10.0.0.0/14
-
-gcloud compute firewall-rules create "udp-in-500" --allow=udp:500 --direction=IN
-gcloud compute firewall-rules create "udp-in-4500" --allow=udp:4500 --direction=IN
-gcloud compute firewall-rules create "udp-in-4800" --allow=udp:4800 --direction=IN
-
-gcloud compute firewall-rules create "udp-out-500" --allow=udp:500 --direction=OUT
-gcloud compute firewall-rules create "udp-out-4500" --allow=udp:4500 --direction=OUT
-gcloud compute firewall-rules create "udp-out-4800" --allow=udp:4800 --direction=OUT
-
-4)
-gcloud container clusters get-credentials cluster-a --zone="europe-west3-a"
-subctl deploy-broker
-
-gcloud container clusters get-credentials cluster-a --region="us-west1"
-subctl deploy-broker
-
-5)
-
-gcloud container clusters get-credentials cluster-a --zone=europe-west3-a --project=kmcm-83960
-subctl join broker-info.subm --clusterid cluster-a --clustercidr 10.88.0.0/14 --servicecidr 10.92.0.0/20 --health-check=false
-
-gcloud container clusters get-credentials cluster-b --zone=europe-west3-a --project=kmcm-83960
-subctl join broker-info.subm --clusterid cluster-b --clustercidr 10.120.0.0/14 --servicecidr 10.124.0.0/20 --health-check=false
-
-6)
-gcloud container clusters get-credentials cluster-a --zone=europe-west3-a --project=kmcm-83960
-subctl show all
-
-7)
-gcloud container clusters get-credentials cluster-a --zone=europe-west3-a --project=kmcm-83960
-CLUSTER_IP=$(kubectl get svc submariner-lighthouse-coredns -n submariner-operator -o=custom-columns=ClusterIP:.spec.clusterIP | tail -n +2)
-
-gcloud container clusters get-credentials cluster-b --zone=europe-west3-a --project=kmcm-83960
-CLUSTER_IP=$(kubectl get svc submariner-lighthouse-coredns -n submariner-operator -o=custom-columns=ClusterIP:.spec.clusterIP | tail -n +2)
-
-kubectl config delete-cluster gke_kmcm-83960_europe-west3-a_cluster-a
-kubectl config delete-context gke_kmcm-83960_europe-west3-a_cluster-a
-kubectl config delete-user gke_kmcm-83960_europe-west3-a_cluster-a
-
-kubectl config delete-cluster gke_kmcm-83960_europe-west3-a_cluster-b
-kubectl config delete-context gke_kmcm-83960_europe-west3-a_cluster-b
-kubectl config delete-user gke_kmcm-83960_europe-west3-a_cluster-b
-
-# E2E testing
-
-KUBECONFIG=cluster-a.yml gcloud container clusters get-credentials cluster-a --zone="europe-west3-a"
-KUBECONFIG=cluster-b.yml gcloud container clusters get-credentials cluster-b --zone="europe-west3-a"
-
-KUBECONFIG=cluster-a.yml:cluster-b.yml subctl verify --kubecontexts gke_kmcm-83960_europe-west3-a_cluster-a,gke_kmcm-83960_europe-west3-a_cluster-b --only service-discovery,connectivity --verbose 
-
-# Manual Testing
-
- #### Deploy on cluster-a
-gcloud container clusters get-credentials cluster-a --zone=europe-west3-a --project=kmcm-83960
-kubectl create deployment nginx --image=nginx
-kubectl expose deployment nginx --port=80
-subctl export service --namespace default nginx
-
-#### Run test from cluster-b
-gcloud container clusters get-credentials cluster-b --zone=europe-west3-a --project=kmcm-83960
-kubectl -n default run tmp-shell --rm -i --tty --image quay.io/submariner/nettest -- /bin/bash
-curl nginx.default.svc.clusterset.local
-
-Cluster-a
-gke-cluster-a-default-pool-29836d96-7c9x/10.156.0.30
-10.108.0.14
-
-Cluster-b
-
-
-### Delete netshoot pods
-kubectl get pods | grep netshoot-hostmount | awk '/netshoot-hostmoun/{print $1}' | xargs kubectl delete pod
-
-kubectl -n default run tmp-shell --privileged --rm -i --tty --image nicolaka/netshoot -- /bin/bash
-
-kubectl run --privileged netshoot-hostmount-$(uuidgen) -i --overrides='{
-	"spec": {
-		"hostNetwork": true,
-		"nodeName": "gke-cluster-a-default-pool-573bbd6a-7skq",
-		"containers": [{
-			"stdin": true,
-			"stdinOnce": true,
-			"terminationMessagePath": "/dev/termination-log",
-			"terminationMessagePolicy": "File",
-			"tty": true,
-			"securityContext": {
-				"allowPrivilegeEscalation": true,
-				"privileged": true,
-				"runAsUser": 0,
-				"capabilities": {
-					"add": ["ALL"]
-				}
-			},
-			"name": "netshoot-hostmount",
-			"image": "nicolaka/netshoot",
-			"volumeMounts": [{
-				"mountPath": "/host",
-				"name": "host-slash",
-				"readOnly": true
-			}]
-		}],
-	        "restartPolicy": "Never",
-		"volumes": [{
-			"hostPath": {
-				"path": "/",
-				"type": ""
-			},
-			"name": "host-slash"
-		}]
-	}
-}' --image nicolaka/netshoot -- /bin/bash
-
-sysctl -a 2>/dev/null | grep "\.rp_filter" | awk '/net.ipv4/{print $1}' | tr . / | awk '/net/{newvar="/proc/sys/"$1; print newvar}' | awk '{print "2" > $1}'
-
-
-kubectl get pods | grep netshoot-hostmount | awk '/netshoot-hostmoun/{print $1}' | xargs kubectl delete pod
-
-sysctl -a 2>/dev/null | grep '\.rp_filter' | awk '/net.ipv4/{print $1}' | tr . / | sudo awk '/net/{newvar="/proc/sys/"$1; print newvar}' | awk '{print "0" > $1}'
-
-sudo 
-
-
-echo 2 > /proc/sys/net/ipv4/conf/vx-submariner/rp_filter
-
-echo 2 > /proc/sys/net/ipv4/conf/ens4/rp_filter && echo 2 > /proc/sys/net/ipv4/conf/docker0/rp_filter && echo 2 > /proc/sys/net/ipv4/conf/cbr0/rp_filter
-
-
-## Calico config
-
-
-KUBECONFIG=cluster-a.yml gcloud container clusters get-credentials cluster-a --region="us-west1"
-KUBECONFIG=cluster-b.yml gcloud container clusters get-credentials cluster-b --region="us-east1"
-
-curl -o kubectl-calico -O -L  "https://github.com/projectcalico/calicoctl/releases/download/v3.16.10/calicoctl" 
-chmod +x kubectl-calico
-
-gcloud container clusters get-credentials cluster-a --zone=europe-west3-a --project=kmcm-83960
-
-- Cluster a
-
-cat > svcclusterb.yaml <<EOF
-  apiVersion: projectcalico.org/v3
-  kind: IPPool
-  metadata:
-    name: svcclusterb
-  spec:
-    cidr: 10.124.0.0/20
-    natOutgoing: false
-    disabled: true
-EOF
-
-cat > podclusterb.yaml <<EOF
-  apiVersion: projectcalico.org/v3
-  kind: IPPool
-  metadata:
-    name: podclusterb
-  spec:
-    cidr: 10.120.0.0/14
-    natOutgoing: false
-    disabled: true
-EOF
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico create -f svcclusterb.yaml
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico create -f podclusterb.yaml
-
-
-cat > allow-tcp-in-cluster-a.yml <<EOF
- apiVersion: projectcalico.org/v3
- kind: GlobalNetworkPolicy
- metadata:
-   name: allow-tcp-in-cluster-a
- spec:
-   order: 10
-   ingress:
-     - action: Allow
-       protocol: TCP
-EOF
-
-cat > allow-tcp-out-cluster-a.yml <<EOF
- apiVersion: projectcalico.org/v3
- kind: GlobalNetworkPolicy
- metadata:
-   name: allow-tcp-out-cluster-a
- spec:
-   order: 10
-   egress:
-     - action: Allow
-       protocol: TCP
-EOF
-
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico apply -f allow-tcp-in-cluster-a.yml
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico create -f allow-tcp-out-cluster-a.yml
-
-- Cluster b
-
-gcloud container clusters get-credentials cluster-b --zone=europe-west3-a --project=kmcm-83960
-
-cat > svcclustera.yaml <<EOF
-  apiVersion: projectcalico.org/v3
-  kind: IPPool
-  metadata:
-    name: svcclustera
-  spec:
-    cidr: 10.92.0.0/20
-    natOutgoing: false
-    disabled: true
-EOF
-
-cat > podclustera.yaml <<EOF
-  apiVersion: projectcalico.org/v3
-  kind: IPPool
-  metadata:
-    name: podclustera
-  spec:
-    cidr: 10.88.0.0/14
-    natOutgoing: false
-    disabled: true
-EOF
-
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-b.yml kubectl calico create -f svcclustera.yaml
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-b.yml kubectl calico create -f podclustera.yaml
-
-
-
-## Diag Calico
-
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico get node
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-a.yml kubectl calico get ipPool
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-b.yml kubectl calico get ipPool
-DATASTORE_TYPE=kubernetes KUBECONFIG=cluster-b.yml kubectl calico get nodes
-
-
-{
-    "name": "cluater-a-host-local",
-    "cniVersion": "0.1.0",
-    "type": "calico",
-    "kubernetes": {
-        "kubeconfig": "/path/to/kubeconfig",
-        "node_name": "node-name-in-k8s"
-    },
-    "ipam": {
-        "type": "host-local",
-        "ranges": [
-            [
-                { "subnet": "usePodCidr" }
-            ],
-        ],
-        "routes": [
-            { "dst": "0.0.0.0/0" },
-        ]
-    }
-}
+我们的方法不是对现有多视图学习的简单修补，而是针对安全场景特性的一次**范式重构**。通过**解耦**保证看得清，通过**协同**保证想得深，通过**差异化蒸馏**保证判得准。这一整套逻辑闭环，使得我们的模型在应对复杂、隐蔽、高对抗的异常行为分析任务时，展现出了超越 SOTA 的性能。
